@@ -7,7 +7,9 @@ from langchain_ollama import ChatOllama
 from config import LLM_MODEL, MAX_HISTORY_MESSAGES, RETRIEVAL_K
 from ingest import get_vector_store
 
-SYSTEM_PROMPT = """You are a helpful research assistant. Answer questions based ONLY on the provided context from research papers.
+SYSTEM_PROMPT = """\
+You are a helpful research assistant. \
+Answer questions based ONLY on the provided context from research papers.
 
 Rules:
 - Use only the information in the context below to answer

@@ -8,8 +8,8 @@ from langchain_core.documents import Document
 from ingest import chunk_documents, load_pdfs
 from rag import RAGChain
 
-
 # --- Helpers ---
+
 
 def create_test_pdf(path: Path, pages: list[str]) -> None:
     """Create a simple PDF with given page texts."""
@@ -22,6 +22,7 @@ def create_test_pdf(path: Path, pages: list[str]) -> None:
 
 
 # --- Test PDF Loading ---
+
 
 class TestLoadPdfs:
     def test_loads_pdfs_with_metadata(self, tmp_path: Path) -> None:
@@ -55,6 +56,7 @@ class TestLoadPdfs:
 
 # --- Test Chunking ---
 
+
 class TestChunkDocuments:
     def test_splits_long_document(self) -> None:
         long_text = "word " * 500  # ~2500 chars
@@ -77,6 +79,7 @@ class TestChunkDocuments:
 
 
 # --- Test RAG Formatting ---
+
 
 class TestRAGChainFormatting:
     def setup_method(self) -> None:

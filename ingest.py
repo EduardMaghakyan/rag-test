@@ -94,6 +94,7 @@ if __name__ == "__main__":
         if response != "y":
             sys.exit(0)
         import shutil
+
         shutil.rmtree(CHROMA_DIR)
 
     ingest()
