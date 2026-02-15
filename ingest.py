@@ -1,6 +1,8 @@
 """PDF ingestion pipeline: load PDFs, chunk text, store in ChromaDB."""
 
+import shutil
 import sys
+from pathlib import Path
 
 import pymupdf
 from langchain_chroma import Chroma
@@ -17,9 +19,9 @@ from config import (
 )
 
 
-def load_pdfs(directory: str | None = None) -> list[Document]:
+def load_pdfs(directory: str | Path | None = None) -> list[Document]:
     """Extract text from all PDFs in directory using pymupdf."""
-    papers_dir = PAPERS_DIR if directory is None else __import__("pathlib").Path(directory)
+    papers_dir = Path(directory) if directory else PAPERS_DIR
     documents: list[Document] = []
 
     pdf_files = sorted(papers_dir.glob("*.pdf"))
@@ -93,8 +95,6 @@ if __name__ == "__main__":
         response = input("Delete and re-ingest? [y/N] ").strip().lower()
         if response != "y":
             sys.exit(0)
-        import shutil
-
         shutil.rmtree(CHROMA_DIR)
 
     ingest()

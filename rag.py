@@ -33,7 +33,8 @@ class RAGChain:
         """Similarity search for relevant chunks."""
         return self.vector_store.similarity_search(query, k=RETRIEVAL_K)
 
-    def format_context(self, docs: list[Document]) -> str:
+    @staticmethod
+    def format_context(docs: list[Document]) -> str:
         """Format retrieved documents as numbered context with source refs."""
         parts = []
         for i, doc in enumerate(docs, 1):
@@ -42,7 +43,8 @@ class RAGChain:
             parts.append(f"[{i}] (Source: {source}, Page {page})\n{doc.page_content}")
         return "\n\n".join(parts)
 
-    def format_sources(self, docs: list[Document]) -> str:
+    @staticmethod
+    def format_sources(docs: list[Document]) -> str:
         """Deduplicated source list."""
         seen: set[str] = set()
         sources: list[str] = []

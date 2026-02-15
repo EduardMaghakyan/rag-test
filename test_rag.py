@@ -90,7 +90,7 @@ class TestRAGChainFormatting:
         ]
 
     def test_format_context_numbering(self) -> None:
-        context = RAGChain.format_context(None, self.docs)
+        context = RAGChain.format_context(self.docs)
 
         assert "[1]" in context
         assert "[2]" in context
@@ -99,7 +99,7 @@ class TestRAGChainFormatting:
         assert "paper2.pdf" in context
 
     def test_format_sources_deduplication(self) -> None:
-        sources = RAGChain.format_sources(None, self.docs)
+        sources = RAGChain.format_sources(self.docs)
 
         lines = sources.strip().split("\n")
         # paper1.pdf page 1 appears twice in docs but should be deduped
