@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import Mock
 
 import pymupdf
 from langchain_core.documents import Document
@@ -87,3 +88,20 @@ def test_format_sources_deduplication() -> None:
     assert len(lines) == 2
     assert "paper1.pdf" in lines[0]
     assert "paper2.pdf" in lines[1]
+
+
+def test_ask_returns_answer_and_sources() -> None:
+    mock_store = Mock()
+    mock_store.similarity_search.return_value = [
+        Document(page_content="text", metadata={"source": "a.pdf", "page": 1})
+    ]
+    mock_llm = Mock()
+    mock_llm.invoke.return_value = Mock(content="answer")
+
+    chain = RAGChain(vector_store=mock_store, llm=mock_llm)
+    result = chain.ask("question")
+
+    assert result["answer"] == "answer"
+    assert "a.pdf" in result["sources"]
+    mock_store.similarity_search.assert_called_once()
+    mock_llm.invoke.assert_called_once()

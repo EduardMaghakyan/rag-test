@@ -6,6 +6,7 @@ from pathlib import Path
 import pymupdf
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
 from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -14,6 +15,7 @@ from config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     EMBEDDING_MODEL,
+    LLM_MODEL,
     SOURCE_FILES_DIR,
     VECTOR_STORE_COLLECTION,
     VECTOR_STORE_URI,
@@ -59,6 +61,17 @@ def chunk_documents(documents: list[Document]) -> list[Document]:
     ).split_documents(documents)
     logger.debug("Split into %d chunks", len(chunks))
     return chunks
+
+
+def get_llm() -> BaseChatModel:
+    if APP_ENV == "prod":
+        from langchain_openai import ChatOpenAI
+
+        return ChatOpenAI(model=LLM_MODEL)
+
+    from langchain_ollama import ChatOllama
+
+    return ChatOllama(model=LLM_MODEL)
 
 
 def _get_embeddings() -> Embeddings:

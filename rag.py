@@ -1,8 +1,10 @@
 from langchain_core.documents import Document
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.vectorstores import VectorStore
 
-from config import APP_ENV, LLM_MODEL, MAX_HISTORY_MESSAGES, RETRIEVAL_K
-from ingest import get_vector_store
+from config import MAX_HISTORY_MESSAGES, RETRIEVAL_K
+from ingest import get_llm, get_vector_store
 
 SYSTEM_PROMPT = """\
 You are a helpful research assistant. \
@@ -19,16 +21,14 @@ Context:
 
 
 class RAGChain:
-    def __init__(self) -> None:
-        self.vector_store = get_vector_store()
-        if APP_ENV == "prod":
-            from langchain_openai import ChatOpenAI
-
-            self.llm = ChatOpenAI(model=LLM_MODEL)
-        else:
-            from langchain_ollama import ChatOllama
-
-            self.llm = ChatOllama(model=LLM_MODEL)
+    def __init__(
+        self,
+        *,
+        vector_store: VectorStore | None = None,
+        llm: BaseChatModel | None = None,
+    ) -> None:
+        self.vector_store = vector_store or get_vector_store()
+        self.llm = llm or get_llm()
         self.history: list[HumanMessage | AIMessage] = []
 
     @staticmethod
