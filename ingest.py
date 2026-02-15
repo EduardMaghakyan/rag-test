@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pymupdf
@@ -17,7 +18,6 @@ from config import (
     CHUNK_SIZE,
     EMBEDDING_MODEL,
     LLM_MODEL,
-    MAX_PDF_FILES,
     SOURCE_FILES_DIR,
     VECTOR_STORE_COLLECTION,
     VECTOR_STORE_URI,
@@ -26,34 +26,26 @@ from config import (
 logger = logging.getLogger(__name__)
 
 
-def load_pdfs(directory: str | Path | None = None) -> list[Document]:
+def load_pdfs(directory: str | Path | None = None) -> Iterator[Document]:
     papers_dir = Path(directory) if directory else SOURCE_FILES_DIR
 
     if not papers_dir.exists():
         logger.error("Directory does not exist: %s", papers_dir)
-        return []
+        return
     if not papers_dir.is_dir():
         logger.error("Path is not a directory: %s", papers_dir)
-        return []
+        return
     if not os.access(papers_dir, os.R_OK):
         logger.error("Directory is not readable: %s", papers_dir)
-        return []
+        return
 
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
         logger.warning("No PDF files found in %s", papers_dir)
-        return []
+        return
 
-    if len(pdf_files) > MAX_PDF_FILES:
-        logger.warning(
-            "Found %d PDFs, exceeding limit of %d — truncating",
-            len(pdf_files),
-            MAX_PDF_FILES,
-        )
-        pdf_files = pdf_files[:MAX_PDF_FILES]
-
-    documents: list[Document] = []
     failed_files: list[str] = []
+    page_count = 0
 
     for pdf_path in pdf_files:
         logger.debug("Loading %s...", pdf_path.name)
@@ -62,14 +54,13 @@ def load_pdfs(directory: str | Path | None = None) -> list[Document]:
             for page_num, page in enumerate(doc):  # type: ignore[arg-type]
                 text = page.get_text()
                 if text.strip():
-                    documents.append(
-                        Document(
-                            page_content=text,
-                            metadata={
-                                "source": pdf_path.name,
-                                "page": page_num + 1,
-                            },
-                        )
+                    page_count += 1
+                    yield Document(
+                        page_content=text,
+                        metadata={
+                            "source": pdf_path.name,
+                            "page": page_num + 1,
+                        },
                     )
             doc.close()
         except Exception:
@@ -79,8 +70,7 @@ def load_pdfs(directory: str | Path | None = None) -> list[Document]:
     if failed_files:
         logger.warning("Failed to load %d file(s): %s", len(failed_files), failed_files)
 
-    logger.info("Loaded %d pages from %d PDFs", len(documents), len(pdf_files) - len(failed_files))
-    return documents
+    logger.info("Loaded %d pages from %d PDFs", page_count, len(pdf_files) - len(failed_files))
 
 
 def chunk_documents(documents: list[Document]) -> list[Document]:
@@ -133,28 +123,46 @@ def get_vector_store() -> VectorStore:
     )
 
 
-def ingest() -> VectorStore:
-    chunks = chunk_documents(load_pdfs())
+def _create_empty_vector_store() -> VectorStore:
     embeddings = _get_embeddings()
     if APP_ENV == "prod":
         from langchain_qdrant import QdrantVectorStore
 
-        vector_store = QdrantVectorStore.from_documents(
-            documents=chunks,
-            embedding=embeddings,
+        return QdrantVectorStore(
             url=VECTOR_STORE_URI,
             collection_name=VECTOR_STORE_COLLECTION,
-        )
-        logger.info("Stored %d chunks in Qdrant at %s", len(chunks), VECTOR_STORE_URI)
-    else:
-        from langchain_chroma import Chroma
-
-        vector_store = Chroma.from_documents(
-            documents=chunks,
             embedding=embeddings,
-            persist_directory=VECTOR_STORE_URI,
         )
-        logger.info("Stored %d chunks in ChromaDB at %s", len(chunks), VECTOR_STORE_URI)
+
+    from langchain_chroma import Chroma
+
+    return Chroma(
+        persist_directory=VECTOR_STORE_URI,
+        embedding_function=embeddings,
+    )
+
+
+def ingest() -> VectorStore:
+    vector_store = _create_empty_vector_store()
+    splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+
+    current_source = None
+    batch: list[Document] = []
+
+    for doc in load_pdfs():
+        if doc.metadata["source"] != current_source and batch:
+            chunks = splitter.split_documents(batch)
+            vector_store.add_documents(chunks)
+            logger.debug("Indexed %d chunks from %s", len(chunks), current_source)
+            batch = []
+        current_source = doc.metadata["source"]
+        batch.append(doc)
+
+    if batch:
+        chunks = splitter.split_documents(batch)
+        vector_store.add_documents(chunks)
+        logger.debug("Indexed %d chunks from %s", len(chunks), current_source)
+
     return vector_store
 
 
