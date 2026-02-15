@@ -1,7 +1,9 @@
+import sys
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pymupdf
+import pytest
 from langchain_core.documents import Document
 
 from ingest import chunk_documents, load_pdfs
@@ -105,3 +107,45 @@ def test_ask_returns_answer_and_sources() -> None:
     assert "a.pdf" in result["sources"]
     mock_store.similarity_search.assert_called_once()
     mock_llm.invoke.assert_called_once()
+
+
+def test_load_pdfs_missing_directory(tmp_path: Path) -> None:
+    assert load_pdfs(tmp_path / "nonexistent") == []
+
+
+def test_load_pdfs_not_a_directory(tmp_path: Path) -> None:
+    file_path = tmp_path / "not_a_dir.txt"
+    file_path.write_text("hello")
+    assert load_pdfs(file_path) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="chmod not reliable on Windows")
+def test_load_pdfs_unreadable_directory(tmp_path: Path) -> None:
+    restricted = tmp_path / "restricted"
+    restricted.mkdir()
+    restricted.chmod(0o000)
+    try:
+        assert load_pdfs(restricted) == []
+    finally:
+        restricted.chmod(0o755)
+
+
+def test_load_pdfs_corrupted_file_skipped(tmp_path: Path) -> None:
+    create_test_pdf(tmp_path / "good.pdf", ["Good content"])
+    (tmp_path / "bad.pdf").write_bytes(b"not a real pdf")
+
+    docs = load_pdfs(tmp_path)
+
+    assert len(docs) == 1
+    assert docs[0].metadata["source"] == "good.pdf"
+
+
+@patch("ingest.MAX_PDF_FILES", 3)
+def test_load_pdfs_max_files_limit(tmp_path: Path) -> None:
+    for i in range(5):
+        create_test_pdf(tmp_path / f"paper_{i:02d}.pdf", [f"Content {i}"])
+
+    docs = load_pdfs(tmp_path)
+
+    sources = {d.metadata["source"] for d in docs}
+    assert len(sources) == 3

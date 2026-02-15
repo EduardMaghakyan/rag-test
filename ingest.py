@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from config import (
     CHUNK_SIZE,
     EMBEDDING_MODEL,
     LLM_MODEL,
+    MAX_PDF_FILES,
     SOURCE_FILES_DIR,
     VECTOR_STORE_COLLECTION,
     VECTOR_STORE_URI,
@@ -26,31 +28,58 @@ logger = logging.getLogger(__name__)
 
 def load_pdfs(directory: str | Path | None = None) -> list[Document]:
     papers_dir = Path(directory) if directory else SOURCE_FILES_DIR
+
+    if not papers_dir.exists():
+        logger.error("Directory does not exist: %s", papers_dir)
+        return []
+    if not papers_dir.is_dir():
+        logger.error("Path is not a directory: %s", papers_dir)
+        return []
+    if not os.access(papers_dir, os.R_OK):
+        logger.error("Directory is not readable: %s", papers_dir)
+        return []
+
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
         logger.warning("No PDF files found in %s", papers_dir)
         return []
 
+    if len(pdf_files) > MAX_PDF_FILES:
+        logger.warning(
+            "Found %d PDFs, exceeding limit of %d — truncating",
+            len(pdf_files),
+            MAX_PDF_FILES,
+        )
+        pdf_files = pdf_files[:MAX_PDF_FILES]
+
     documents: list[Document] = []
+    failed_files: list[str] = []
 
     for pdf_path in pdf_files:
         logger.debug("Loading %s...", pdf_path.name)
-        doc = pymupdf.open(pdf_path)
-        for page_num, page in enumerate(doc):  # type: ignore[arg-type]
-            text = page.get_text()
-            if text.strip():
-                documents.append(
-                    Document(
-                        page_content=text,
-                        metadata={
-                            "source": pdf_path.name,
-                            "page": page_num + 1,
-                        },
+        try:
+            doc = pymupdf.open(pdf_path)
+            for page_num, page in enumerate(doc):  # type: ignore[arg-type]
+                text = page.get_text()
+                if text.strip():
+                    documents.append(
+                        Document(
+                            page_content=text,
+                            metadata={
+                                "source": pdf_path.name,
+                                "page": page_num + 1,
+                            },
+                        )
                     )
-                )
-        doc.close()
+            doc.close()
+        except Exception:
+            logger.exception("Failed to load %s, skipping", pdf_path.name)
+            failed_files.append(pdf_path.name)
 
-    logger.info("Loaded %d pages from %d PDFs", len(documents), len(pdf_files))
+    if failed_files:
+        logger.warning("Failed to load %d file(s): %s", len(failed_files), failed_files)
+
+    logger.info("Loaded %d pages from %d PDFs", len(documents), len(pdf_files) - len(failed_files))
     return documents
 
 
