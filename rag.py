@@ -1,8 +1,7 @@
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
 
-from config import LLM_MODEL, MAX_HISTORY_MESSAGES, RETRIEVAL_K
+from config import APP_ENV, LLM_MODEL, MAX_HISTORY_MESSAGES, RETRIEVAL_K
 from ingest import get_vector_store
 
 SYSTEM_PROMPT = """\
@@ -22,7 +21,14 @@ Context:
 class RAGChain:
     def __init__(self) -> None:
         self.vector_store = get_vector_store()
-        self.llm = ChatOllama(model=LLM_MODEL)
+        if APP_ENV == "prod":
+            from langchain_openai import ChatOpenAI
+
+            self.llm = ChatOpenAI(model=LLM_MODEL)
+        else:
+            from langchain_ollama import ChatOllama
+
+            self.llm = ChatOllama(model=LLM_MODEL)
         self.history: list[HumanMessage | AIMessage] = []
 
     @staticmethod
