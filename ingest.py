@@ -4,24 +4,26 @@ import sys
 from pathlib import Path
 
 import pymupdf
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_ollama import OllamaEmbeddings
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config import (
-    CHROMA_DIR,
+    APP_ENV,
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     EMBEDDING_MODEL,
-    PAPERS_DIR,
+    SOURCE_FILES_DIR,
+    VECTOR_STORE_COLLECTION,
+    VECTOR_STORE_URI,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def load_pdfs(directory: str | Path | None = None) -> list[Document]:
-    papers_dir = Path(directory) if directory else PAPERS_DIR
+    papers_dir = Path(directory) if directory else SOURCE_FILES_DIR
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
         logger.warning("No PDF files found in %s", papers_dir)
@@ -59,30 +61,68 @@ def chunk_documents(documents: list[Document]) -> list[Document]:
     return chunks
 
 
-def get_vector_store() -> Chroma:
+def _get_embeddings() -> Embeddings:
+    if APP_ENV == "prod":
+        from langchain_openai import OpenAIEmbeddings
+
+        return OpenAIEmbeddings(model=EMBEDDING_MODEL)
+
+    from langchain_ollama import OllamaEmbeddings
+
+    return OllamaEmbeddings(model=EMBEDDING_MODEL)
+
+
+def get_vector_store() -> VectorStore:
+    embeddings = _get_embeddings()
+    if APP_ENV == "prod":
+        from langchain_qdrant import QdrantVectorStore
+
+        return QdrantVectorStore.from_existing_collection(
+            url=VECTOR_STORE_URI,
+            collection_name=VECTOR_STORE_COLLECTION,
+            embedding=embeddings,
+        )
+
+    from langchain_chroma import Chroma
+
     return Chroma(
-        persist_directory=str(CHROMA_DIR),
-        embedding_function=OllamaEmbeddings(model=EMBEDDING_MODEL),
+        persist_directory=VECTOR_STORE_URI,
+        embedding_function=embeddings,
     )
 
 
-def ingest() -> Chroma:
+def ingest() -> VectorStore:
     chunks = chunk_documents(load_pdfs())
-    vector_store = Chroma.from_documents(
-        documents=chunks,
-        embedding=OllamaEmbeddings(model=EMBEDDING_MODEL),
-        persist_directory=str(CHROMA_DIR),
-    )
-    logger.info("Stored %d chunks in ChromaDB at %s", len(chunks), CHROMA_DIR)
+    embeddings = _get_embeddings()
+    if APP_ENV == "prod":
+        from langchain_qdrant import QdrantVectorStore
+
+        vector_store = QdrantVectorStore.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            url=VECTOR_STORE_URI,
+            collection_name=VECTOR_STORE_COLLECTION,
+        )
+        logger.info("Stored %d chunks in Qdrant at %s", len(chunks), VECTOR_STORE_URI)
+    else:
+        from langchain_chroma import Chroma
+
+        vector_store = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
+            persist_directory=VECTOR_STORE_URI,
+        )
+        logger.info("Stored %d chunks in ChromaDB at %s", len(chunks), VECTOR_STORE_URI)
     return vector_store
 
 
 if __name__ == "__main__":
-    if CHROMA_DIR.exists():
-        print(f"Vector store already exists at {CHROMA_DIR}. Delete it to re-ingest.")
+    store_path = Path(VECTOR_STORE_URI)
+    if APP_ENV != "prod" and store_path.exists():
+        print(f"Vector store already exists at {store_path}. Delete it to re-ingest.")
         response = input("Delete and re-ingest? [y/N] ").strip().lower()
         if response != "y":
             sys.exit(0)
-        shutil.rmtree(CHROMA_DIR)
+        shutil.rmtree(store_path)
 
     ingest()
