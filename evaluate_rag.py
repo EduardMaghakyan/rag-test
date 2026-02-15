@@ -223,7 +223,7 @@ def collect_samples(test_cases: list[dict[str, str]]) -> list[SingleTurnSample]:
 
 def run_evaluation() -> None:
     logger.info("Collecting RAG responses for %d test cases...", len(TEST_CASES))
-    samples = collect_samples(TEST_CASES[:3])
+    samples = collect_samples(TEST_CASES)
 
     if not samples:
         print("No samples collected — all test cases failed. Exiting.")
