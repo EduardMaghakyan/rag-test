@@ -25,3 +25,4 @@ RETRIEVAL_K = 4
 MAX_HISTORY_MESSAGES = 10
 
 logging.basicConfig(level=LOG_LEVEL, format="%(levelname)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)

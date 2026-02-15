@@ -12,6 +12,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from tqdm import tqdm
 
 from config import (
     APP_ENV,
@@ -27,51 +28,54 @@ from config import (
 logger = logging.getLogger(__name__)
 
 
-def load_pdfs(directory: str | Path | None = None) -> Iterator[Document]:
+def load_pdfs(directory: str | Path | None = None) -> tuple[Iterator[Document], int]:
     papers_dir = Path(directory) if directory else SOURCE_FILES_DIR
 
     if not papers_dir.exists():
         logger.error("Directory does not exist: %s", papers_dir)
-        return
+        return iter([]), 0
     if not papers_dir.is_dir():
         logger.error("Path is not a directory: %s", papers_dir)
-        return
+        return iter([]), 0
     if not os.access(papers_dir, os.R_OK):
         logger.error("Directory is not readable: %s", papers_dir)
-        return
+        return iter([]), 0
 
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
         logger.warning("No PDF files found in %s", papers_dir)
-        return
+        return iter([]), 0
 
-    failed_files: list[str] = []
-    page_count = 0
+    def _generate() -> Iterator[Document]:
+        failed_files: list[str] = []
+        page_count = 0
 
-    for pdf_path in pdf_files:
-        logger.debug("Loading %s...", pdf_path.name)
-        try:
-            doc = pymupdf.open(pdf_path)
-            for page_num, page in enumerate(doc):  # type: ignore[arg-type]
-                text = page.get_text()
-                if text.strip():
-                    page_count += 1
-                    yield Document(
-                        page_content=text,
-                        metadata={
-                            "source": pdf_path.name,
-                            "page": page_num + 1,
-                        },
-                    )
-            doc.close()
-        except Exception:
-            logger.exception("Failed to load %s, skipping", pdf_path.name)
-            failed_files.append(pdf_path.name)
+        for pdf_path in pdf_files:
+            logger.debug("Loading %s...", pdf_path.name)
+            try:
+                doc = pymupdf.open(pdf_path)
+                for page_num, page in enumerate(doc):  # type: ignore[arg-type]
+                    text = page.get_text()
+                    if text.strip():
+                        page_count += 1
+                        yield Document(
+                            page_content=text,
+                            metadata={
+                                "source": pdf_path.name,
+                                "page": page_num + 1,
+                            },
+                        )
+                doc.close()
+            except Exception:
+                logger.exception("Failed to load %s, skipping", pdf_path.name)
+                failed_files.append(pdf_path.name)
 
-    if failed_files:
-        logger.warning("Failed to load %d file(s): %s", len(failed_files), failed_files)
+        if failed_files:
+            logger.warning("Failed to load %d file(s): %s", len(failed_files), failed_files)
 
-    logger.info("Loaded %d pages from %d PDFs", page_count, len(pdf_files) - len(failed_files))
+        logger.info("Loaded %d pages from %d PDFs", page_count, len(pdf_files) - len(failed_files))
+
+    return _generate(), len(pdf_files)
 
 
 def chunk_documents(documents: list[Document]) -> list[Document]:
@@ -147,7 +151,13 @@ def ingest() -> VectorStore:
     vector_store = _create_empty_vector_store()
     splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
 
-    for source, pages in groupby(load_pdfs(), key=lambda d: d.metadata["source"]):
+    docs, total_files = load_pdfs()
+    for source, pages in tqdm(
+        groupby(docs, key=lambda d: d.metadata["source"]),
+        total=total_files,
+        desc="Ingesting PDFs",
+        unit="file",
+    ):
         chunks = splitter.split_documents(list(pages))
         vector_store.add_documents(chunks)
         logger.debug("Indexed %d chunks from %s", len(chunks), source)
