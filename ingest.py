@@ -1,5 +1,4 @@
-"""PDF ingestion pipeline: load PDFs, chunk text, store in ChromaDB."""
-
+import logging
 import shutil
 import sys
 from pathlib import Path
@@ -18,19 +17,20 @@ from config import (
     PAPERS_DIR,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def load_pdfs(directory: str | Path | None = None) -> list[Document]:
-    """Extract text from all PDFs in directory using pymupdf."""
     papers_dir = Path(directory) if directory else PAPERS_DIR
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
-        print(f"No PDF files found in {papers_dir}")
+        logger.warning("No PDF files found in %s", papers_dir)
         return []
 
     documents: list[Document] = []
 
     for pdf_path in pdf_files:
-        print(f"Loading {pdf_path.name}...")
+        logger.debug("Loading %s...", pdf_path.name)
         doc = pymupdf.open(pdf_path)
         for page_num, page in enumerate(doc):  # type: ignore[arg-type]
             text = page.get_text()
@@ -46,22 +46,20 @@ def load_pdfs(directory: str | Path | None = None) -> list[Document]:
                 )
         doc.close()
 
-    print(f"Loaded {len(documents)} pages from {len(pdf_files)} PDFs")
+    logger.info("Loaded %d pages from %d PDFs", len(documents), len(pdf_files))
     return documents
 
 
 def chunk_documents(documents: list[Document]) -> list[Document]:
-    """Split documents into chunks for embedding."""
     chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
     ).split_documents(documents)
-    print(f"Split into {len(chunks)} chunks")
+    logger.debug("Split into %d chunks", len(chunks))
     return chunks
 
 
 def get_vector_store() -> Chroma:
-    """Load existing ChromaDB vector store."""
     return Chroma(
         persist_directory=str(CHROMA_DIR),
         embedding_function=OllamaEmbeddings(model=EMBEDDING_MODEL),
@@ -69,14 +67,13 @@ def get_vector_store() -> Chroma:
 
 
 def ingest() -> Chroma:
-    """Run full ingestion pipeline: load PDFs, chunk, embed, store."""
     chunks = chunk_documents(load_pdfs())
     vector_store = Chroma.from_documents(
         documents=chunks,
         embedding=OllamaEmbeddings(model=EMBEDDING_MODEL),
         persist_directory=str(CHROMA_DIR),
     )
-    print(f"Stored {len(chunks)} chunks in ChromaDB at {CHROMA_DIR}")
+    logger.info("Stored %d chunks in ChromaDB at %s", len(chunks), CHROMA_DIR)
     return vector_store
 
 

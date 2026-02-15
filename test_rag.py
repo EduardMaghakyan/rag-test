@@ -1,5 +1,3 @@
-"""Tests for PDF loading, chunking, and RAG formatting."""
-
 from pathlib import Path
 
 import pymupdf

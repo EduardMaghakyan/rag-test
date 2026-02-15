@@ -1,5 +1,3 @@
-"""RAG chain: retrieval, context formatting, and answer generation with conversation history."""
-
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
@@ -22,8 +20,6 @@ Context:
 
 
 class RAGChain:
-    """RAG chain with conversation history."""
-
     def __init__(self) -> None:
         self.vector_store = get_vector_store()
         self.llm = ChatOllama(model=LLM_MODEL)
@@ -31,7 +27,6 @@ class RAGChain:
 
     @staticmethod
     def format_context(docs: list[Document]) -> str:
-        """Format retrieved documents as numbered context with source refs."""
         return "\n\n".join(
             f"[{i}] (Source: {d.metadata.get('source', 'unknown')}, "
             f"Page {d.metadata.get('page', '?')})\n{d.page_content}"
@@ -40,7 +35,6 @@ class RAGChain:
 
     @staticmethod
     def format_sources(docs: list[Document]) -> str:
-        """Deduplicated source list."""
         keys = dict.fromkeys(
             f"{d.metadata.get('source', 'unknown')}, Page {d.metadata.get('page', '?')}"
             for d in docs
@@ -48,7 +42,6 @@ class RAGChain:
         return "\n".join(f"  - {k}" for k in keys)
 
     def ask(self, question: str) -> dict[str, str]:
-        """Retrieve context, generate answer, return answer + sources."""
         docs = self.vector_store.similarity_search(question, k=RETRIEVAL_K)
         context = self.format_context(docs)
         sources = self.format_sources(docs)
