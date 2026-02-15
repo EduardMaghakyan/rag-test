@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 from collections.abc import Iterator
+from itertools import groupby
 from pathlib import Path
 
 import pymupdf
@@ -146,22 +147,10 @@ def ingest() -> VectorStore:
     vector_store = _create_empty_vector_store()
     splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
 
-    current_source = None
-    batch: list[Document] = []
-
-    for doc in load_pdfs():
-        if doc.metadata["source"] != current_source and batch:
-            chunks = splitter.split_documents(batch)
-            vector_store.add_documents(chunks)
-            logger.debug("Indexed %d chunks from %s", len(chunks), current_source)
-            batch = []
-        current_source = doc.metadata["source"]
-        batch.append(doc)
-
-    if batch:
-        chunks = splitter.split_documents(batch)
+    for source, pages in groupby(load_pdfs(), key=lambda d: d.metadata["source"]):
+        chunks = splitter.split_documents(list(pages))
         vector_store.add_documents(chunks)
-        logger.debug("Indexed %d chunks from %s", len(chunks), current_source)
+        logger.debug("Indexed %d chunks from %s", len(chunks), source)
 
     return vector_store
 
