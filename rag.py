@@ -29,57 +29,41 @@ class RAGChain:
         self.llm = ChatOllama(model=LLM_MODEL)
         self.history: list[HumanMessage | AIMessage] = []
 
-    def retrieve(self, query: str) -> list[Document]:
-        """Similarity search for relevant chunks."""
-        return self.vector_store.similarity_search(query, k=RETRIEVAL_K)
-
     @staticmethod
     def format_context(docs: list[Document]) -> str:
         """Format retrieved documents as numbered context with source refs."""
-        parts = []
-        for i, doc in enumerate(docs, 1):
-            source = doc.metadata.get("source", "unknown")
-            page = doc.metadata.get("page", "?")
-            parts.append(f"[{i}] (Source: {source}, Page {page})\n{doc.page_content}")
-        return "\n\n".join(parts)
+        return "\n\n".join(
+            f"[{i}] (Source: {d.metadata.get('source', 'unknown')}, "
+            f"Page {d.metadata.get('page', '?')})\n{d.page_content}"
+            for i, d in enumerate(docs, 1)
+        )
 
     @staticmethod
     def format_sources(docs: list[Document]) -> str:
         """Deduplicated source list."""
-        seen: set[str] = set()
-        sources: list[str] = []
-        for doc in docs:
-            source = doc.metadata.get("source", "unknown")
-            page = doc.metadata.get("page", "?")
-            key = f"{source}, Page {page}"
-            if key not in seen:
-                seen.add(key)
-                sources.append(f"  - {key}")
-        return "\n".join(sources)
+        keys = dict.fromkeys(
+            f"{d.metadata.get('source', 'unknown')}, Page {d.metadata.get('page', '?')}"
+            for d in docs
+        )
+        return "\n".join(f"  - {k}" for k in keys)
 
     def ask(self, question: str) -> dict[str, str]:
         """Retrieve context, generate answer, return answer + sources."""
-        docs = self.retrieve(question)
+        docs = self.vector_store.similarity_search(question, k=RETRIEVAL_K)
         context = self.format_context(docs)
         sources = self.format_sources(docs)
 
-        system_msg = SystemMessage(content=SYSTEM_PROMPT.format(context=context))
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT.format(context=context)),
+            *self.history[-MAX_HISTORY_MESSAGES:],
+            HumanMessage(content=question),
+        ]
+        answer = str(self.llm.invoke(messages).content)
 
-        # Trim history to last N messages
-        trimmed_history = self.history[-MAX_HISTORY_MESSAGES:]
-
-        messages = [system_msg, *trimmed_history, HumanMessage(content=question)]
-        response = self.llm.invoke(messages)
-
-        # Update history
         self.history.append(HumanMessage(content=question))
-        self.history.append(AIMessage(content=response.content))
+        self.history.append(AIMessage(content=answer))
 
-        return {
-            "answer": response.content,
-            "sources": sources,
-        }
+        return {"answer": answer, "sources": sources}
 
     def reset(self) -> None:
-        """Clear conversation history."""
         self.history.clear()

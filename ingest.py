@@ -22,17 +22,17 @@ from config import (
 def load_pdfs(directory: str | Path | None = None) -> list[Document]:
     """Extract text from all PDFs in directory using pymupdf."""
     papers_dir = Path(directory) if directory else PAPERS_DIR
-    documents: list[Document] = []
-
     pdf_files = sorted(papers_dir.glob("*.pdf"))
     if not pdf_files:
         print(f"No PDF files found in {papers_dir}")
-        return documents
+        return []
+
+    documents: list[Document] = []
 
     for pdf_path in pdf_files:
         print(f"Loading {pdf_path.name}...")
         doc = pymupdf.open(pdf_path)
-        for page_num, page in enumerate(doc):
+        for page_num, page in enumerate(doc):  # type: ignore[arg-type]
             text = page.get_text()
             if text.strip():
                 documents.append(
@@ -52,41 +52,32 @@ def load_pdfs(directory: str | Path | None = None) -> list[Document]:
 
 def chunk_documents(documents: list[Document]) -> list[Document]:
     """Split documents into chunks for embedding."""
-    splitter = RecursiveCharacterTextSplitter(
+    chunks = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
-    )
-    chunks = splitter.split_documents(documents)
+    ).split_documents(documents)
     print(f"Split into {len(chunks)} chunks")
     return chunks
 
 
-def create_vector_store(chunks: list[Document]) -> Chroma:
-    """Embed chunks and store in ChromaDB."""
-    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
-    vector_store = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory=str(CHROMA_DIR),
-    )
-    print(f"Stored {len(chunks)} chunks in ChromaDB at {CHROMA_DIR}")
-    return vector_store
-
-
 def get_vector_store() -> Chroma:
     """Load existing ChromaDB vector store."""
-    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
     return Chroma(
         persist_directory=str(CHROMA_DIR),
-        embedding_function=embeddings,
+        embedding_function=OllamaEmbeddings(model=EMBEDDING_MODEL),
     )
 
 
 def ingest() -> Chroma:
-    """Run full ingestion pipeline."""
-    documents = load_pdfs()
-    chunks = chunk_documents(documents)
-    return create_vector_store(chunks)
+    """Run full ingestion pipeline: load PDFs, chunk, embed, store."""
+    chunks = chunk_documents(load_pdfs())
+    vector_store = Chroma.from_documents(
+        documents=chunks,
+        embedding=OllamaEmbeddings(model=EMBEDDING_MODEL),
+        persist_directory=str(CHROMA_DIR),
+    )
+    print(f"Stored {len(chunks)} chunks in ChromaDB at {CHROMA_DIR}")
+    return vector_store
 
 
 if __name__ == "__main__":
