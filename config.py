@@ -17,7 +17,7 @@ VECTOR_STORE_COLLECTION = os.environ.get("VECTOR_STORE_COLLECTION", "research_pa
 # Single model name — Ollama model for dev, OpenAI model for prod
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "nomic-embed-text")
 
-LLM_MODEL = os.environ.get("LLM_MODEL", "llama3.1:8b")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemma3:12b")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200

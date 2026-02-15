@@ -95,7 +95,7 @@ def get_llm() -> BaseChatModel:
 
     from langchain_ollama import ChatOllama
 
-    return ChatOllama(model=LLM_MODEL)
+    return ChatOllama(model=LLM_MODEL, timeout=120)
 
 
 def _get_embeddings() -> Embeddings:
