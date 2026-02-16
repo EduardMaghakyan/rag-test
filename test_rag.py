@@ -101,11 +101,18 @@ def test_ask_returns_answer_and_sources() -> None:
     mock_llm.invoke.return_value = Mock(content="answer")
 
     chain = RAGChain(vector_store=mock_store, llm=mock_llm)
+
+    mock_retriever = Mock()
+    mock_retriever.invoke.return_value = [
+        Document(page_content="text", metadata={"source": "a.pdf", "page": 1})
+    ]
+    chain.retriever = mock_retriever
+
     result = chain.ask("question")
 
     assert result["answer"] == "answer"
     assert "a.pdf" in result["sources"]
-    mock_store.similarity_search.assert_called_once()
+    mock_retriever.invoke.assert_called_once_with("question")
     mock_llm.invoke.assert_called_once()
 
 

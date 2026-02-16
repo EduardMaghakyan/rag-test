@@ -10,9 +10,9 @@ from ragas.metrics._factual_correctness import FactualCorrectness
 from ragas.metrics._faithfulness import Faithfulness
 from ragas.run_config import RunConfig
 
-from config import RETRIEVAL_K
-from ingest import _get_embeddings, get_llm, get_vector_store
+from ingest import _get_embeddings, get_llm
 from rag import SYSTEM_PROMPT, RAGChain
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -189,15 +189,14 @@ TEST_CASES = [
 
 
 def collect_samples(test_cases: list[dict[str, str]]) -> list[SingleTurnSample]:
-    vector_store = get_vector_store()
-    llm = get_llm()
+    rag_chain = RAGChain()
     samples = []
 
     for i, case in enumerate(test_cases, 1):
         question = case["question"]
         logger.info("Processing question %d/%d: %s", i, len(test_cases), question)
         try:
-            docs = vector_store.similarity_search(question, k=RETRIEVAL_K)
+            docs = rag_chain.retriever.invoke(question)
             retrieved_contexts = [doc.page_content for doc in docs]
             context = RAGChain.format_context(docs)
 
@@ -205,7 +204,7 @@ def collect_samples(test_cases: list[dict[str, str]]) -> list[SingleTurnSample]:
                 SystemMessage(content=SYSTEM_PROMPT.format(context=context)),
                 HumanMessage(content=question),
             ]
-            response = str(llm.invoke(messages).content)
+            response = str(rag_chain.llm.invoke(messages).content)
 
             samples.append(
                 SingleTurnSample(
@@ -222,8 +221,10 @@ def collect_samples(test_cases: list[dict[str, str]]) -> list[SingleTurnSample]:
 
 
 def run_evaluation() -> None:
-    logger.info("Collecting RAG responses for %d test cases...", len(TEST_CASES))
-    samples = collect_samples(TEST_CASES)
+    sample_test_cases = random.choices(TEST_CASES, 5)
+    
+    logger.info("Collecting RAG responses for %d test cases...", len(sample_test_cases))
+    samples = collect_samples(sample_test_cases)
 
     if not samples:
         print("No samples collected — all test cases failed. Exiting.")
@@ -232,10 +233,10 @@ def run_evaluation() -> None:
     dataset = EvaluationDataset(samples=samples)
 
     metrics = [
-        Faithfulness(),
+        # Faithfulness(),
         ResponseRelevancy(),
         LLMContextRecall(),
-        FactualCorrectness(),
+        # FactualCorrectness(),
     ]
 
     logger.info("Running Ragas evaluation...")

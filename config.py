@@ -22,6 +22,14 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 RETRIEVAL_K = 4
+RETRIEVAL_FETCH_K = 20              # MMR candidate pool
+RETRIEVAL_LAMBDA_MULT = 0.7         # MMR diversity (0=diverse, 1=relevant)
+ENABLE_HYBRID_SEARCH = True         # BM25 + vector ensemble
+BM25_WEIGHT = 0.3                   # BM25 weight in ensemble
+VECTOR_WEIGHT = 0.7                 # Vector weight in ensemble
+ENABLE_RERANKING = True             # FlashRank reranking
+RERANK_FETCH_K = 20                 # Over-fetch candidates for reranker
+RERANK_MODEL = "ms-marco-MiniLM-L-12-v2"
 MAX_HISTORY_MESSAGES = 10
 
 logging.basicConfig(level=LOG_LEVEL, format="%(levelname)s: %(message)s")

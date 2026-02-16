@@ -147,6 +147,47 @@ def _create_empty_vector_store() -> VectorStore:
     )
 
 
+def get_all_documents(vector_store: VectorStore) -> list[Document]:
+    """Load all documents from the vector store for BM25 indexing."""
+    if APP_ENV == "prod":
+        from qdrant_client import models
+
+        client = vector_store.client  # type: ignore[attr-defined]
+        collection_name = vector_store.collection_name  # type: ignore[attr-defined]
+        docs: list[Document] = []
+        offset = None
+        while True:
+            results = client.scroll(
+                collection_name=collection_name,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            points, next_offset = results
+            for point in points:
+                payload = point.payload or {}
+                content = payload.get("page_content", "")
+                metadata = payload.get("metadata", {})
+                docs.append(Document(page_content=content, metadata=metadata))
+            if next_offset is None:
+                break
+            offset = next_offset
+        logger.info("Loaded %d documents from Qdrant for BM25", len(docs))
+        return docs
+
+    # Dev: Chroma
+    store_data = vector_store.get(include=["documents", "metadatas"])  # type: ignore[operator]
+    documents = store_data.get("documents", []) or []
+    metadatas = store_data.get("metadatas", []) or []
+    docs = [
+        Document(page_content=text, metadata=meta or {})
+        for text, meta in zip(documents, metadatas)
+    ]
+    logger.info("Loaded %d documents from Chroma for BM25", len(docs))
+    return docs
+
+
 def ingest() -> VectorStore:
     vector_store = _create_empty_vector_store()
     splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
