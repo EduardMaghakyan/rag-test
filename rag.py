@@ -70,9 +70,7 @@ class RAGChain:
 
                 all_docs = get_all_documents(self.vector_store)
                 if all_docs:
-                    bm25_retriever = BM25Retriever.from_documents(
-                        all_docs, k=candidate_k
-                    )
+                    bm25_retriever = BM25Retriever.from_documents(all_docs, k=candidate_k)
                     retriever = EnsembleRetriever(
                         retrievers=[bm25_retriever, base_retriever],
                         weights=[BM25_WEIGHT, VECTOR_WEIGHT],

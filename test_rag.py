@@ -23,7 +23,8 @@ def test_load_pdfs_with_metadata(tmp_path: Path) -> None:
     create_test_pdf(tmp_path / "paper1.pdf", ["Page one content", "Page two content"])
     create_test_pdf(tmp_path / "paper2.pdf", ["Another paper"])
 
-    docs = list(load_pdfs(str(tmp_path)))
+    doc_iter, _count = load_pdfs(str(tmp_path))
+    docs = list(doc_iter)
 
     assert len(docs) == 3
     assert docs[0].metadata["source"] == "paper1.pdf"
@@ -33,13 +34,15 @@ def test_load_pdfs_with_metadata(tmp_path: Path) -> None:
 
 
 def test_load_pdfs_empty_directory(tmp_path: Path) -> None:
-    assert list(load_pdfs(str(tmp_path))) == []
+    doc_iter, _count = load_pdfs(str(tmp_path))
+    assert list(doc_iter) == []
 
 
 def test_load_pdfs_skips_blank_pages(tmp_path: Path) -> None:
     create_test_pdf(tmp_path / "mixed.pdf", ["", "Has content"])
 
-    docs = list(load_pdfs(str(tmp_path)))
+    doc_iter, _count = load_pdfs(str(tmp_path))
+    docs = list(doc_iter)
     assert len(docs) == 1
     assert docs[0].metadata["page"] == 2
 
@@ -117,13 +120,15 @@ def test_ask_returns_answer_and_sources() -> None:
 
 
 def test_load_pdfs_missing_directory(tmp_path: Path) -> None:
-    assert list(load_pdfs(tmp_path / "nonexistent")) == []
+    doc_iter, _count = load_pdfs(tmp_path / "nonexistent")
+    assert list(doc_iter) == []
 
 
 def test_load_pdfs_not_a_directory(tmp_path: Path) -> None:
     file_path = tmp_path / "not_a_dir.txt"
     file_path.write_text("hello")
-    assert list(load_pdfs(file_path)) == []
+    doc_iter, _count = load_pdfs(file_path)
+    assert list(doc_iter) == []
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="chmod not reliable on Windows")
@@ -132,7 +137,8 @@ def test_load_pdfs_unreadable_directory(tmp_path: Path) -> None:
     restricted.mkdir()
     restricted.chmod(0o000)
     try:
-        assert list(load_pdfs(restricted)) == []
+        doc_iter, _count = load_pdfs(restricted)
+        assert list(doc_iter) == []
     finally:
         restricted.chmod(0o755)
 
@@ -141,7 +147,8 @@ def test_load_pdfs_corrupted_file_skipped(tmp_path: Path) -> None:
     create_test_pdf(tmp_path / "good.pdf", ["Good content"])
     (tmp_path / "bad.pdf").write_bytes(b"not a real pdf")
 
-    docs = list(load_pdfs(tmp_path))
+    doc_iter, _count = load_pdfs(tmp_path)
+    docs = list(doc_iter)
 
     assert len(docs) == 1
     assert docs[0].metadata["source"] == "good.pdf"

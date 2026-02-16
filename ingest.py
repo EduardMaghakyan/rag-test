@@ -91,11 +91,11 @@ def get_llm() -> BaseChatModel:
     if APP_ENV == "prod":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(model=LLM_MODEL)
+        return ChatOpenAI(model=LLM_MODEL)  # type: ignore[call-arg]
 
     from langchain_ollama import ChatOllama
 
-    return ChatOllama(model=LLM_MODEL, timeout=120)
+    return ChatOllama(model=LLM_MODEL, timeout=120)  # type: ignore[call-arg]
 
 
 def _get_embeddings() -> Embeddings:
@@ -133,8 +133,8 @@ def _create_empty_vector_store() -> VectorStore:
     if APP_ENV == "prod":
         from langchain_qdrant import QdrantVectorStore
 
-        return QdrantVectorStore(
-            url=VECTOR_STORE_URI,
+        return QdrantVectorStore(  # type: ignore[call-arg]
+            url=VECTOR_STORE_URI,  # type: ignore[unknown-argument]
             collection_name=VECTOR_STORE_COLLECTION,
             embedding=embeddings,
         )
@@ -150,7 +150,6 @@ def _create_empty_vector_store() -> VectorStore:
 def get_all_documents(vector_store: VectorStore) -> list[Document]:
     """Load all documents from the vector store for BM25 indexing."""
     if APP_ENV == "prod":
-        from qdrant_client import models
 
         client = vector_store.client  # type: ignore[attr-defined]
         collection_name = vector_store.collection_name  # type: ignore[attr-defined]
@@ -182,7 +181,7 @@ def get_all_documents(vector_store: VectorStore) -> list[Document]:
     metadatas = store_data.get("metadatas", []) or []
     docs = [
         Document(page_content=text, metadata=meta or {})
-        for text, meta in zip(documents, metadatas)
+        for text, meta in zip(documents, metadatas, strict=False)
     ]
     logger.info("Loaded %d documents from Chroma for BM25", len(docs))
     return docs
