@@ -190,3 +190,8 @@ LLM_MODEL=gpt-4o
 ```
 
 All code paths branch on `APP_ENV` — no other changes needed.
+
+## Known Limitations
+
+- **LLM calls backoff retry** — no automatic retry on transient API failures
+- **Validator pattern** — no input/output validation layer
