@@ -51,12 +51,24 @@ flowchart LR
   - `llama3.1:8b` (LLM)
   - `nomic-embed-text` (embeddings)
 
-## Quick Start
+## Quick Start and Configuration
+
+### Environment Variables (`.env`)
+
+| Variable                  | Default            | Description                                                 |
+| ------------------------- | ------------------ | ----------------------------------------------------------- |
+| `APP_ENV`                 | `dev`              | `dev` for local Ollama + Chroma, `prod` for OpenAI + Qdrant |
+| `SOURCE_FILES_DIR`        | `research_papers`  | Directory containing PDF files                              |
+| `VECTOR_STORE_URI`        | `chroma_db`        | Chroma directory path (dev) or Qdrant URL (prod)            |
+| `VECTOR_STORE_COLLECTION` | `research_papers`  | Vector store collection name                                |
+| `EMBEDDING_MODEL`         | `nomic-embed-text` | Embedding model name                                        |
+| `LLM_MODEL`               | `llama3.1:8b`      | LLM model name                                              |
+| `LOG_LEVEL`               | `INFO`             | Logging verbosity                                           |
 
 ```bash
 # Clone the repo
-git clone <repo-url>
-cd <repo-name>
+git clone git@github.com:EduardMaghakyan/rag-test.git
+cd rag-test
 
 # Install dependencies
 uv sync
@@ -65,7 +77,7 @@ uv sync
 ollama pull llama3.1:8b
 ollama pull nomic-embed-text
 
-# Place PDFs in the research_papers/ directory (15 papers included)
+# Place PDFs in the research_papers/ directory
 
 # Ingest PDFs into the vector store
 uv run python ingest.py
@@ -85,20 +97,6 @@ The CLI supports three commands:
 | Any other text     | Ask a question about your PDFs |
 
 Each response includes the answer and a list of source references (filename + page number).
-
-## Configuration
-
-### Environment Variables (`.env`)
-
-| Variable                  | Default            | Description                                                 |
-| ------------------------- | ------------------ | ----------------------------------------------------------- |
-| `APP_ENV`                 | `dev`              | `dev` for local Ollama + Chroma, `prod` for OpenAI + Qdrant |
-| `SOURCE_FILES_DIR`        | `research_papers`  | Directory containing PDF files                              |
-| `VECTOR_STORE_URI`        | `chroma_db`        | Chroma directory path (dev) or Qdrant URL (prod)            |
-| `VECTOR_STORE_COLLECTION` | `research_papers`  | Vector store collection name                                |
-| `EMBEDDING_MODEL`         | `nomic-embed-text` | Embedding model name                                        |
-| `LLM_MODEL`               | `llama3.1:8b`      | LLM model name                                              |
-| `LOG_LEVEL`               | `INFO`             | Logging verbosity                                           |
 
 ### Tunable Parameters (`config.py`)
 
