@@ -1,7 +1,7 @@
 [project]
 name = "pdf-qa-chatbot"
 version = "0.1.0"
-description = "RAG-based PDF Q&A chatbot - for egg.AI"
+description = "RAG-based PDF Q&A chatbot"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "langchain>=1.2",

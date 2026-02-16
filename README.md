@@ -1,6 +1,6 @@
 # PDF Q&A Chatbot
 
-RAG-based chatbot for conversational Q&A over research papers — built for the egg.AI take-home exercise.
+RAG-based chatbot for conversational Q&A over research papers
 
 ## Features
 
